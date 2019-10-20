@@ -67,75 +67,83 @@ def cumul_ret(portfolio_value):
 
 
 def compute_portvals(orders_file="./orders/orders.csv", start_val=1000000, commission=9.95, impact=0.005):
-    orders_df = pd.read_csv(orders_file, index_col='Date', parse_dates=True, na_values=['nan'])
-    start_date = orders_df.index.min()
-    end_date = orders_df.index.max()
+    
+    
+    order_pdataframe = pd.read_csv(orders_file, index_col='Date', parse_dates=True, na_values=['nan'])
+    start_date = order_pdataframe.index.min()
+    end_date = order_pdataframe.index.max()
 
-    # Fetch stocks prices
-    stocks = orders_df["Symbol"].unique().tolist()
-    stocks_dict = {}
+    
+    
+    # extract stock prices according to symbol
+    stocks = order_pdataframe["Symbol"].unique().tolist()
+    stock_dictionary = {}
     for symbol in stocks:
-        stocks_dict[symbol] = get_data([symbol], pd.date_range(start_date, end_date), colname='Adj Close')
-        stocks_dict[symbol] = stocks_dict[symbol].resample("D").fillna(method="ffill")
-        stocks_dict[symbol] = stocks_dict[symbol].fillna(method="bfill")
+        stock_dictionary[symbol] = get_data([symbol], pd.date_range(start_date, end_date), colname='Adj Close')
+        stock_dictionary[symbol] = stock_dictionary[symbol].resample("D").fillna(method="ffill")
+        stock_dictionary[symbol] = stock_dictionary[symbol].fillna(method="bfill")
 
-    # List the trading days
-    SPY = get_data(['SPY'], pd.date_range(start_date, end_date))
-    trading_days = pd.date_range(start_date, end_date, freq="D")
-    not_trading_days = []
-    for day in trading_days:
-        if day not in SPY.index:
-            not_trading_days.append(day)
-    trading_days = trading_days.drop(not_trading_days)
+    #  extract trading days between the start and end dates
+    
 
-    for day in orders_df.index:
-        if day not in trading_days:
-            raise Exception("One of the order day is missing in trading days")
+    
+    SPX = get_data(['$SPX'], pd.date_range(start_date, end_date))
+    market_trading_day = pd.date_range(start_date, end_date, freq="D")
+    not_market_trading_day = []
+    for day in market_trading_day:
+        if day not in SPX.index:
+            not_market_trading_day.append(day)
+    market_trading_day = market_trading_day.drop(not_market_trading_day)
 
-    # Initialization of portfolio DataFrame
-    portvals = pd.DataFrame(index=trading_days, columns=["portfolio_value"] + stocks)
+   
+    
+    
+    portvals = pd.DataFrame(index=market_trading_day, columns=["portfolio_value"] + stocks)
 
-    # Compute portfolio value for each trading day in the period
+   
+    ## calc portval for every day in the date range from start to end date
+    
+    
     current_value = start_val
     previous_day = None
-    for today in trading_days:
+    for current_trading_day in market_trading_day:
 
-        # Copy previous trading day's portfolio state
+        
         if previous_day is not None:
-            portvals.loc[today, :] = portvals.loc[previous_day, :]
-            portvals.loc[today, "portfolio_value"] = 0
+            portvals.loc[current_trading_day, :] = portvals.loc[previous_day, :]
+            portvals.loc[current_trading_day, "portfolio_value"] = 0
         else:
-            portvals.loc[today, :] = 0
+            portvals.loc[current_trading_day, :] = 0
 
-        # Execute orders
-        if today in orders_df.index:
-            today_orders = orders_df.loc[[today]]
-            for _, order in today_orders.iterrows():
+        #  carry out orders to buy etc
+        if current_trading_day in order_pdataframe.index:
+            current_trading_day_orders = order_pdataframe.loc[[current_trading_day]]
+            for _, order in current_trading_day_orders.iterrows():
                 symbol = order["Symbol"]
                 operation = order["Order"]
                 shares = order["Shares"]
-                stock_price = stocks_dict[symbol].loc[today, symbol]
+                stock_price = stock_dictionary[symbol].loc[current_trading_day, symbol]
 
                 if operation == "BUY":
                     stock_price = (1 + impact) * stock_price
                     current_value -= stock_price * shares
                     current_value -= commission
-                    portvals.loc[today, symbol] += shares
+                    portvals.loc[current_trading_day, symbol] += shares
                 else:
                     stock_price = (1 - impact) * stock_price
                     current_value += stock_price * shares
                     current_value -= commission
-                    portvals.loc[today, symbol] -= shares
+                    portvals.loc[current_trading_day, symbol] -= shares
 
-        # Update portfolio value
+        #  update portvals according to today's 
         for symbol in stocks:
-            stock_price = stocks_dict[symbol].loc[today, symbol]
-            portvals.loc[today, "portfolio_value"] += portvals.loc[today, symbol] * stock_price
-        portvals.loc[today, "portfolio_value"] += current_value
+            stock_price = stock_dictionary[symbol].loc[current_trading_day, symbol]
+            portvals.loc[current_trading_day, "portfolio_value"] += portvals.loc[current_trading_day, symbol] * stock_price
+        portvals.loc[current_trading_day, "portfolio_value"] += current_value
 
-        previous_day = today
+        previous_day = current_trading_day
 
-    # Remove empty lines
+    # get rid of spaces
     portvals = portvals.sort_index(ascending=True)
     return portvals.iloc[:,0].to_frame()
 
@@ -151,48 +159,56 @@ def compute_portvals(orders_file="./orders/orders.csv", start_val=1000000, commi
    # start_date = dt.datetime(2008,1,1)  		   	  			  	 		  		  		    	 		 		   		 		  
    # end_date = dt.datetime(2008,6,1)  		   	  			  	 		  		  		    	 		 		   		 		  
     #portvals = get_data(['IBM'], pd.date_range(start_date, end_date))  		   	  			  	 		  		  		    	 		 		   		 		  
-   # portvals = portvals[['IBM']]  # remove SPY  		   	  			  	 		  		  		    	 		 		   		 		  
+   # portvals = portvals[['IBM']]  # remove SPX  		   	  			  	 		  		  		    	 		 		   		 		  
    # rv = pd.DataFrame(index=portvals.index, data=portvals.values)  		   	  			  	 		  		  		    	 		 		   		 		  
   		   	  			  	 		  		  		    	 		 		   		 		  
    # return rv  		   	  			  	 		  		  		    	 		 		   		 		  
    # return portvals  		   	  			  	 		  		  		    	 		 		   		 		  
   		   	  			  	 		  		  		    	 		 		   		 		  
 def test_code():  		   	  			  	 		  		  		    	 		 		   		 		  
-    # this is a helper function you can use to test your code  		   	  			  	 		  		  		    	 		 		   		 		  
-    # note that during autograding his function will not be called.  		   	  			  	 		  		  		    	 		 		   		 		  
-    # Define input parameters  		   	  			  	 		  		  		    	 		 		   		 		  
-  		   	  			  	 		  		  		    	 		 		   		 		  
-    of = "./orders/orders2.csv"  		   	  			  	 		  		  		    	 		 		   		 		  
-    sv = 1000000  		   	  			  	 		  		  		    	 		 		   		 		  
-  		   	  			  	 		  		  		    	 		 		   		 		  
-    # Process orders  		   	  			  	 		  		  		    	 		 		   		 		  
-    portvals = compute_portvals(orders_file = of, start_val = sv)  		   	  			  	 		  		  		    	 		 		   		 		  
-    if isinstance(portvals, pd.DataFrame):  		   	  			  	 		  		  		    	 		 		   		 		  
-        portvals = portvals[portvals.columns[0]] # just get the first column  		   	  			  	 		  		  		    	 		 		   		 		  
-    else:  		   	  			  	 		  		  		    	 		 		   		 		  
-        "warning, code did not return a DataFrame"  		   	  			  	 		  		  		    	 		 		   		 		  
-  		   	  			  	 		  		  		    	 		 		   		 		  
-    # Get portfolio stats  		   	  			  	 		  		  		    	 		 		   		 		  
-    # Here we just fake the data. you should use your code from previous assignments.  		   	  			  	 		  		  		    	 		 		   		 		  
-    start_date = dt.datetime(2008,1,1)  		   	  			  	 		  		  		    	 		 		   		 		  
-    end_date = dt.datetime(2008,6,1)  		   	  			  	 		  		  		    	 		 		   		 		  
-    cum_ret, avg_daily_ret, std_daily_ret, sharpe_ratio = [0.2,0.01,0.02,1.5]  		   	  			  	 		  		  		    	 		 		   		 		  
-    cum_ret_SPY, avg_daily_ret_SPY, std_daily_ret_SPY, sharpe_ratio_SPY = [0.2,0.01,0.02,1.5]  		   	  			  	 		  		  		    	 		 		   		 		  
-  		   	  			  	 		  		  		    	 		 		   		 		  
-    # Compare portfolio against $SPX  		   	  			  	 		  		  		    	 		 		   		 		  
+    of = "./additional_orders/orders.csv"
+    #of = "./orders/orders-short-bis.csv"
+    #of = "./orders/orders.csv"
+    #of = "./orders/orders2.csv"
+    sv = 1000000
+
+    # Process orders 			  		 			     			  	   		   	  			  	
+    portvals = compute_portvals(orders_file = of, start_val = sv)
+    #print(portvals)
+    if isinstance(portvals, pd.DataFrame): 			  		 			     			  	   		   	  			  	
+        portvals = portvals[portvals.columns[0]] # just get the first column
+    else: 			  		 			     			  	   		   	  			  	
+        "warning, code did not return a DataFrame" 			  		 			     			  	   		   	  			  	
+
+    # Get portfolio stats
+    start_date = portvals.index.min()
+    end_date = portvals.index.max()
+    SPX = get_data(['$SPX'], pd.date_range(start_date, end_date))
+    cum_ret, avg_daily_ret, std_daily_ret, sharpe_ratio_ = [
+        cumul_ret(portvals/portvals[0]),
+        average_daily_returns(portvals/portvals[0]),
+        standard_dev_daily_returns(portvals/portvals[0]),
+        sharpe_ratio(portvals/portvals[0])
+    ]
+    cum_ret_SPX, avg_daily_ret_SPX, std_daily_ret_SPX, sharpe_ratio_SPX = [
+        cumul_ret(SPX.iloc[:,1]/SPX.iloc[0,1]),
+        average_daily_returns(SPX.iloc[:,1]/SPX.iloc[0,1]),
+        standard_dev_daily_returns(SPX.iloc[:,1]/SPX.iloc[0,1]),
+        sharpe_ratio(SPX.iloc[:,1]/SPX.iloc[0,1])
+    ] 		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Date Range: {start_date} to {end_date}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Sharpe Ratio of Fund: {sharpe_ratio}")  		   	  			  	 		  		  		    	 		 		   		 		  
-    print(f"Sharpe Ratio of SPY : {sharpe_ratio_SPY}")  		   	  			  	 		  		  		    	 		 		   		 		  
+    print(f"Sharpe Ratio of SPX : {sharpe_ratio_SPX}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Cumulative Return of Fund: {cum_ret}")  		   	  			  	 		  		  		    	 		 		   		 		  
-    print(f"Cumulative Return of SPY : {cum_ret_SPY}")  		   	  			  	 		  		  		    	 		 		   		 		  
+    print(f"Cumulative Return of SPX : {cum_ret_SPX}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Standard Deviation of Fund: {std_daily_ret}")  		   	  			  	 		  		  		    	 		 		   		 		  
-    print(f"Standard Deviation of SPY : {std_daily_ret_SPY}")  		   	  			  	 		  		  		    	 		 		   		 		  
+    print(f"Standard Deviation of SPX : {std_daily_ret_SPX}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Average Daily Return of Fund: {avg_daily_ret}")  		   	  			  	 		  		  		    	 		 		   		 		  
-    print(f"Average Daily Return of SPY : {avg_daily_ret_SPY}")  		   	  			  	 		  		  		    	 		 		   		 		  
+    print(f"Average Daily Return of SPX : {avg_daily_ret_SPX}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Final Portfolio Value: {portvals[-1]}")  		   	  			  	 		  		  		    	 		 		   		 		  
   		   	  			  	 		  		  		    	 		 		   		 		  
