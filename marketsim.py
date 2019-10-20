@@ -85,7 +85,12 @@ def compute_portvals(orders_file="./orders/orders.csv", start_val=1000000, commi
 
     #  extract trading days between the start and end dates
     
-
+    
+    
+    
+    
+    
+    
     
     SPX = get_data(['$SPX'], pd.date_range(start_date, end_date))
     market_trading_day = pd.date_range(start_date, end_date, freq="D")
@@ -198,7 +203,7 @@ def test_code():
     ] 		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Date Range: {start_date} to {end_date}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
-    print(f"Sharpe Ratio of Fund: {sharpe_ratio}")  		   	  			  	 		  		  		    	 		 		   		 		  
+    print(f"Sharpe Ratio of Fund: {sharpe_ratio_}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Sharpe Ratio of SPX : {sharpe_ratio_SPX}")  		   	  			  	 		  		  		    	 		 		   		 		  
     print()  		   	  			  	 		  		  		    	 		 		   		 		  
     print(f"Cumulative Return of Fund: {cum_ret}")  		   	  			  	 		  		  		    	 		 		   		 		  
